@@ -1,0 +1,12 @@
+[project]
+name = "bingsift"
+version = "0.1.0"
+description = "Parse and filter Bing SERP HTML into clean JSON, with optional URL builders for time/site filters."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name="Tab & ChatGPT", email="example@example.com"}]
+license = {text = "MIT"}
+dependencies = ["beautifulsoup4", "pandas"]
+
+[project.scripts]
+bingsift = "bingsift.cli:main"
