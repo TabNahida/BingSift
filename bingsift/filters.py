@@ -7,6 +7,13 @@ def _to_lower_list(x):
 
 def filter_results(rows: list[dict], *, include: list[str] | None = None, exclude: list[str] | None = None,
                    allow_domains: list[str] | None = None, deny_domains: list[str] | None = None) -> list[dict]:
+    """
+    Basic in-memory filter for parsed SERP rows.
+    - include: all words must appear (case-insensitive) in title+snippet
+    - exclude: any word appearing will drop the row
+    - allow_domains: only keep rows whose domain matches or endswith item
+    - deny_domains: drop rows whose domain matches or endswith item
+    """
     inc = _to_lower_list(include)
     exc = _to_lower_list(exclude)
     allow = _to_lower_list(allow_domains)

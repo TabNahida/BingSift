@@ -1,10 +1,10 @@
 [project]
 name = "bingsift"
-version = "0.1.0"
-description = "Parse and filter Bing SERP HTML into clean JSON, with optional URL builders for time/site filters."
+version = "0.2.0"
+description = "Sift Bing SERP HTML into clean JSON/CSV, build filtered search URLs, and extract Bing click redirect targets."
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{name="TabNahida", email="tab@tabye.top"}]
+authors = [{name="TabNahida"}]
 license = {text = "MIT"}
 dependencies = ["beautifulsoup4", "pandas"]
 

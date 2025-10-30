@@ -1,70 +1,101 @@
 \
 from __future__ import annotations
-import re
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, quote_plus
 from bs4 import BeautifulSoup
 
 def _extract_domain(url: str) -> str:
+    """Return netloc/domain from a URL, or empty string on failure."""
     try:
         return urlparse(url).netloc
     except Exception:
         return ""
 
 def _parse_relative_time(text: str, now_dt: datetime) -> datetime | None:
-    text_l = text.strip().lower()
-    text_l = text_l.replace("mins", "minutes").replace("min", "minute")
-    text_l = text_l.replace("hrs", "hours").replace("hr", "hour")
-    text_l = text_l.replace("sec", "second").replace("secs", "seconds")
-    m = re.search(r"(\\d+)\\s+(second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)\\s+ago", text_l)
-    if not m:
-        return None
-    n = int(m.group(1))
-    unit = m.group(2)
-    if "second" in unit:
-        delta = timedelta(seconds=n)
-    elif "minute" in unit:
-        delta = timedelta(minutes=n)
-    elif "hour" in unit:
-        delta = timedelta(hours=n)
-    elif "day" in unit:
-        delta = timedelta(days=n)
-    elif "week" in unit:
-        delta = timedelta(weeks=n)
-    elif "month" in unit:
-        delta = timedelta(days=30*n)
-    elif "year" in unit:
-        delta = timedelta(days=365*n)
-    else:
-        return None
-    return now_dt - delta
+    """
+    Parse relative time like '2 hours ago' (no regex).
+    Returns an absolute datetime or None.
+    """
+    t = text.strip().lower()
+    # normalize common variants
+    t = t.replace("mins", "minutes").replace("min", "minute")
+    t = t.replace("hrs", "hours").replace("hr", "hour")
+    t = t.replace("sec", "second").replace("secs", "seconds")
 
-def _parse_absolute_date(text: str) -> datetime | None:
-    text_c = text.strip()
-    text_c = re.sub(r"[•·|—-]\\s*", " ", text_c)
-    fmts = [
-        "%b %d, %Y", "%d %b %Y", "%Y-%m-%d", "%B %d, %Y", "%d %B %Y",
-        "%b %d %Y", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d", "%Y.%m.%d", "%d.%m.%Y"
-    ]
+    # Tokenize on whitespace
+    parts = t.split()
+    # Look for pattern: <int> <unit> ago
+    for i in range(len(parts) - 2):
+        num_str, unit, ago = parts[i], parts[i+1], parts[i+2]
+        if not num_str.isdigit():
+            continue
+        if ago != "ago":
+            continue
+        n = int(num_str)
+        if unit in ("second", "seconds"):
+            delta = timedelta(seconds=n)
+        elif unit in ("minute", "minutes"):
+            delta = timedelta(minutes=n)
+        elif unit in ("hour", "hours"):
+            delta = timedelta(hours=n)
+        elif unit in ("day", "days"):
+            delta = timedelta(days=n)
+        elif unit in ("week", "weeks"):
+            delta = timedelta(weeks=n)
+        elif unit in ("month", "months"):
+            delta = timedelta(days=30*n)  # approximation
+        elif unit in ("year", "years"):
+            delta = timedelta(days=365*n)  # approximation
+        else:
+            continue
+        return now_dt - delta
+    return None
+
+def _try_strptime(s: str, fmts: list[str]) -> datetime | None:
     for fmt in fmts:
         try:
-            return datetime.strptime(text_c, fmt)
+            return datetime.strptime(s, fmt)
         except Exception:
             pass
-    m = re.search(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},\\s+\\d{4}", text_c, flags=re.I)
-    if m:
-        for fmt in ("%b %d, %Y", "%B %d, %Y"):
-            try:
-                return datetime.strptime(m.group(0), fmt)
-            except Exception:
-                pass
-    m2 = re.search(r"\\b\\d{1,2}\\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{4}\\b", text_c, flags=re.I)
-    if m2:
-        for fmt in ("%d %b %Y", "%d %B %Y"):
-            try:
-                return datetime.strptime(m2.group(0), fmt)
-            except Exception:
-                pass
+    return None
+
+def _parse_absolute_date(text: str) -> datetime | None:
+    """
+    Parse a few common absolute date patterns (no regex).
+    Returns a datetime or None.
+    """
+    s = text.strip()
+    # Quick passes with common formats
+    fmts = [
+        "%b %d, %Y",     # Oct 20, 2025
+        "%B %d, %Y",     # October 20, 2025
+        "%d %b %Y",      # 20 Oct 2025
+        "%d %B %Y",      # 20 October 2025
+        "%Y-%m-%d",      # 2025-10-20
+        "%b %d %Y",      # Oct 20 2025
+        "%Y/%m/%d",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+    ]
+    # Try as a whole
+    dt = _try_strptime(s, fmts)
+    if dt:
+        return dt
+
+    # Heuristic: split on separators and attempt pieces
+    # e.g., "Published Oct 20, 2025 at ..." -> try contiguous tokens
+    tokens = s.replace(",", " ").replace("|"," ").replace("•"," ").replace("·"," ").split()
+    # Reassemble windows of up to 3 tokens and try
+    for k in range(len(tokens)):
+        for w in range(2, 4):  # 2 or 3 tokens
+            seg = " ".join(tokens[k:k+w])
+            if not seg:
+                continue
+            dt = _try_strptime(seg, fmts)
+            if dt:
+                return dt
     return None
 
 def _guess_time(block_text: str, now_dt: datetime) -> datetime | None:
@@ -75,6 +106,10 @@ def _guess_time(block_text: str, now_dt: datetime) -> datetime | None:
 
 def build_bing_url(query: str, *, when: str | None = None, site: str | None = None,
                    lang: str | None = None, country: str | None = None, safe: bool | None = None) -> str:
+    """
+    Build a Bing search URL with optional freshness ('day'/'week'/'month'/'year'),
+    site restriction, language, market, and adult filter toggle.
+    """
     q = query
     if site:
         q = f"site:{site} {q}"
@@ -93,29 +128,43 @@ def build_bing_url(query: str, *, when: str | None = None, site: str | None = No
     return f"https://www.bing.com/search?{param_str}"
 
 def parse_html(html: str) -> list[dict]:
+    """
+    Parse a saved Bing SERP HTML into a list of dictionaries with
+    title/url/domain/display_url/snippet/attribution/guessed_time_iso.
+    """
     soup = BeautifulSoup(html, "html.parser")
     now = datetime.now()
-    out = []
+    out: list[dict] = []
+
+    # Standard organic results
     for li in soup.select("#b_results li.b_algo"):
         a = li.select_one("h2 a")
-        if not a: 
+        if not a:
             continue
         href = a.get("href","").strip()
         title = a.get_text(" ", strip=True)
+
+        # Snippet
         snippet = ""
         p = li.select_one(".b_caption p") or li.find("p")
         if p:
             snippet = p.get_text(" ", strip=True)
+
+        # Display URL
         display_url = ""
         cite = li.select_one("cite")
         if cite:
             display_url = cite.get_text(" ", strip=True)
+
+        # Attribution (may contain time hints)
         attrib_text = ""
         attrib = li.select_one(".b_attribution") or li.select_one(".b_tpcn")
         if attrib:
             attrib_text = attrib.get_text(" ", strip=True)
-        block_text = " ".join([attrib_text, snippet])
+
+        block_text = f"{attrib_text} {snippet}".strip()
         dt = _guess_time(block_text, now)
+
         out.append({
             "title": title,
             "url": href,
@@ -125,15 +174,16 @@ def parse_html(html: str) -> list[dict]:
             "attribution": attrib_text,
             "guessed_time_iso": dt.isoformat() if dt else None,
         })
-    # optional: news-like cards
+
+    # News-like cards (best-effort)
     for card in soup.select(".news-card, .news-card__item, .b_pressItem"):
         a = card.select_one("a")
         if not a:
             continue
         href = a.get("href","").strip()
         title = a.get_text(" ", strip=True)
-        t_candidate = card.get_text(" ", strip=True)
-        dt = _guess_time(t_candidate, now)
+        text = card.get_text(" ", strip=True)
+        dt = _guess_time(text, now)
         out.append({
             "title": title,
             "url": href,
@@ -143,4 +193,80 @@ def parse_html(html: str) -> list[dict]:
             "attribution": "",
             "guessed_time_iso": dt.isoformat() if dt else None,
         })
+
     return out
+
+def extract_bing_click_target(html: str) -> str | None:
+    """
+    Extract the original target URL from a Bing click/redirect HTML where a script sets:
+        var u = "https://example.com/...";
+    No regular expressions are used. We scan the JS text and parse the string literal.
+    Returns the URL string or None if not found.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    for sc in soup.find_all("script"):
+        script_text = sc.string if sc.string is not None else sc.get_text("", strip=False)
+        if not script_text:
+            continue
+
+        src = script_text
+        i = 0
+        n = len(src)
+
+        while i < n:
+            # Skip whitespace
+            while i < n and src[i].isspace():
+                i += 1
+            if i >= n:
+                break
+
+            # Look for "var"
+            if i + 3 <= n and src[i:i+3] == "var":
+                j = i + 3
+                # Skip spaces
+                while j < n and src[j].isspace():
+                    j += 1
+                # Read identifier
+                ident_start = j
+                while j < n and (src[j].isalnum() or src[j] in ['_','$']):
+                    j += 1
+                ident = src[ident_start:j]
+
+                while j < n and src[j].isspace():
+                    j += 1
+
+                # Only care when identifier is 'u' and followed by '='
+                if ident == "u" and j < n and src[j] == "=":
+                    j += 1
+                    while j < n and src[j].isspace():
+                        j += 1
+                    if j >= n:
+                        return None
+                    quote = src[j]
+                    if quote not in ['"', "'"]:
+                        i = j + 1
+                        continue
+                    j += 1
+                    buf: list[str] = []
+                    while j < n:
+                        c = src[j]
+                        if c == "\\":
+                            if j + 1 < n:
+                                j += 1
+                                buf.append(src[j])  # keep escaped char
+                                j += 1
+                                continue
+                            else:
+                                break
+                        if c == quote:
+                            return "".join(buf)
+                        buf.append(c)
+                        j += 1
+                    i = j + 1
+                    continue
+                else:
+                    i = j + 1
+                    continue
+            else:
+                i += 1
+    return None
