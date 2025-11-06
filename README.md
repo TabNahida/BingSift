@@ -1,60 +1,185 @@
-# bingsift 0.2.0
+# **BingSift — Clean Bing Search Parser**
 
-> Sift Bing search result pages into clean JSON/CSV, build time/site-filtered URLs, **and** extract the original target URL from Bing click/redirect HTML — all with a tiny, dependency-light toolkit.
+**BingSift** is a small toolkit for:
 
-## Features
-- **Parse SERP HTML** (`bing.com/search?q=` pages) into structured rows:
-  - `title`, `url`, `domain`, `display_url`, `snippet`, `attribution`, `guessed_time_iso`
-- **Guess timestamps** from lines like “2 hours ago” or “Oct 20, 2025” (heuristics).
-- **Filter results**: include/exclude keywords, allow/deny domains.
-- **Build Bing URLs** with freshness filters (`day/week/month/year`), `site:` restriction, language/market parameters.
-- **Extract original click target** from Bing click/redirect HTML (script setting `var u = "..."`) — **no regex**.
+* Parsing **Bing search result pages (SERP HTML)** into clean structured data
+* Building **filtered Bing search URLs**
+* Extracting **original target URLs** from Bing *click redirect* pages
+* (Optional) **Fetching** SERP / click pages over the network with headers, retries and delays
 
-> ⚠️ Respect Bing/Microsoft Terms and robots.txt. This package does **not** fetch pages. It parses **saved HTML** and **builds URLs** for you to open in a browser.
+All parsing is done offline from HTML files unless you explicitly enable network fetching.
 
-## Install (editable)
+---
+
+## Install
+
 ```bash
 pip install -e .
 ```
 
-## CLI
+---
+
+## Features Overview
+
+| Feature | Description |
+| --- | --- |
+| SERP HTML parsing | Extract: title, url, domain, display_url, snippet, attribution, guessed_time |
+| Time guessing | Supports “2 hours ago”, “Oct 20, 2025”, etc. (heuristic) |
+| Filtering | include / exclude keywords, allow / deny domains |
+| URL builder | Generate Bing search URLs with freshness / site / market filters |
+| Click target extractor | Extract original link from Bing click pages |
+| Network fetch (optional) | Fetch Bing SERP pages or click pages with retry / timeout / headers |
+
+---
+
+## Command Line Usage
+
+### **Parse a saved SERP HTML file**
+
 ```bash
-# Parse a saved SERP HTML
 bingsift parse search.html --out results.json
-
-# Parse + filter inline
-bingsift parse search.html --include xeon --exclude wikipedia --allow-domain intel.com
-
-# Build a filtered Bing URL (open it in your browser)
-bingsift url "intel xeon roadmap" --when month --site anandtech.com --country en-GB
-
-# Extract a click target from a Bing click HTML (prints the URL only)
-bingsift bingclick article1.html
 ```
 
-## Library
+### **2Parse + filter**
+
+```bash
+bingsift parse search.html \
+  --include intel xeon \
+  --exclude wikipedia \
+  --allow-domain intel.com
+```
+
+### **Build a Bing URL**
+
+```bash
+bingsift url "intel earnings" --when week --country en-GB
+```
+
+### **Extract original URL from a saved click page**
+
+```bash
+bingsift bingclick click_page.html
+```
+
+---
+
+## Network-enabled commands
+
+### **Fetch + Parse SERP (by query)**
+
+```bash
+bingsift fetch-parse --query "nvidia blackwell" --when day --out results.json
+```
+
+### **Fetch + Parse SERP (by full URL)**
+
+```bash
+bingsift fetch-parse --url "https://www.bing.com/search?q=intel"
+```
+
+### **Fetch a click page + extract real URL**
+
+```bash
+bingsift fetch-click "https://www.bing.com/ck/a?..."
+```
+
+Common fetch options:
+
+```
+--timeout 12        Request timeout (seconds)
+--retries 2         Retry attempts
+--delay 1.0         Delay before request (polite)
+--ua "..."          Custom User-Agent
+--proxy http://...  Proxy server
+```
+
+---
+
+## Python Library Usage
+
+### **Parse a saved SERP**
+
 ```python
-from bingsift import parse_html, filter_results, build_bing_url, extract_bing_click_target
+from bingsift import parse_html
 
-html = open("search.html", "r", encoding="utf-8", errors="ignore").read()
+html = open("search.html").read()
 rows = parse_html(html)
-
-rows = filter_results(
-    rows,
-    include=["xeon"],
-    exclude=["wikipedia"],
-    allow_domains=["intel.com"],
-    deny_domains=None,
-)
-
-url = build_bing_url("intel xeon roadmap", when="week", site="anandtech.com", country="en-GB")
-
-click_html = open("article1.html", "r", encoding="utf-8", errors="ignore").read()
-original = extract_bing_click_target(click_html)  # -> string or None
+print(rows[0])
 ```
 
-## Notes on Time Guessing
-We infer `guessed_time_iso` from “relative” strings (`X minutes/hours/days/weeks/months/years ago`) or a handful of common “absolute date” formats (e.g., `Oct 20, 2025`, `20 Oct 2025`, `2025-10-20`). The goal is robustness without extra heavy deps. If you need richer parsing, consider plugging in `dateparser` yourself.
+---
+
+### **Filter results**
+
+```python
+from bingsift import filter_results
+
+filtered = filter_results(
+    rows,
+    include=["cpu", "benchmark"],
+    allow_domains=["anandtech.com"]
+)
+```
+
+---
+
+### **Build a search URL**
+
+```python
+from bingsift import build_bing_url
+
+url = build_bing_url("intel meteor lake", when="week", country="en-US")
+print(url)
+```
+
+---
+
+### **Extract click redirect real URL**
+
+```python
+from bingsift import extract_bing_click_target
+
+click_html = open("click.html").read()
+real = extract_bing_click_target(click_html)
+print(real)
+```
+
+---
+
+### **Network fetch + parse**
+
+```python
+from bingsift.net import fetch_serp_by_query
+
+rows = fetch_serp_by_query(
+    query="amd mi300",
+    when="day",
+    include=["performance"]
+)
+```
+
+---
+
+### **Network fetch click redirect**
+
+```python
+from bingsift.net import fetch_click_and_extract
+
+real = fetch_click_and_extract("https://www.bing.com/ck/a?...")
+print(real)
+```
+
+---
+
+## Notes
+
+* You are responsible for complying with Bing Terms and robots.txt
+* This library does **not** scrape JS-rendered results
+* Click extraction uses **no regex**, only deterministic JS scanning
+* Works best with real HTML from browsers or Bing "click" redirect pages
+
+---
 
 ## License
+
 MIT
