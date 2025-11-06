@@ -40,7 +40,7 @@ pip install -e .
 bingsift parse search.html --out results.json
 ```
 
-### **2Parse + filter**
+### **Parse + filter**
 
 ```bash
 bingsift parse search.html \
