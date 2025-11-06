@@ -1,7 +1,7 @@
 [project]
 name = "bingsift"
-version = "0.2.0"
-description = "Sift Bing SERP HTML into clean JSON/CSV, build filtered search URLs, and extract Bing click redirect targets."
+version = "0.3.0"
+description = "Sift Bing SERP HTML into clean JSON/CSV, build filtered search URLs, extract Bing click targets, and optionally fetch over the network."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name="TabNahida"}]
