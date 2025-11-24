@@ -28,6 +28,7 @@ def main():
     p_url.add_argument("--lang", help="setlang (e.g., en-GB)")
     p_url.add_argument("--country", help="mkt & cc (e.g., en-GB)")
     p_url.add_argument("--safe", action="store_true", help="Set adlt=off")
+    p_url.add_argument("--first", type=int, help="1-based index of the first result to show (Bing 'first' parameter)")
 
     # click extractor (local file)
     p_click = subparsers.add_parser("bingclick", help="Extract 'var u = ...' target from a Bing click HTML (prints URL)")
@@ -43,6 +44,7 @@ def main():
     p_fetch_parse.add_argument("--lang")
     p_fetch_parse.add_argument("--country")
     p_fetch_parse.add_argument("--safe", action="store_true")
+    p_fetch_parse.add_argument("--first", type=int, help="1-based 'first' offset for pagination (with --query)")
     p_fetch_parse.add_argument("--include", nargs="*", help="Keywords that must appear (title+snippet)")
     p_fetch_parse.add_argument("--exclude", nargs="*", help="Keywords that must not appear")
     p_fetch_parse.add_argument("--allow-domain", dest="allow_domain", nargs="*", help="Only keep domains in this set")
@@ -78,7 +80,7 @@ def main():
 
     elif args.cmd == "url":
         print(build_bing_url(args.query, when=args.when, site=args.site, lang=args.lang,
-                             country=args.country, safe=args.safe))
+                             country=args.country, safe=args.safe, first=args.first))
 
     elif args.cmd == "bingclick":
         with open(args.html_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -93,7 +95,7 @@ def main():
         headers = {"User-Agent": args.ua} if args.ua else None
         if args.query:
             rows = fetch_serp_by_query(query=args.query, when=args.when, site=args.site, lang=args.lang,
-                                       country=args.country, safe=args.safe,
+                                       country=args.country, safe=args.safe, first=args.first,
                                        include=args.include, exclude=args.exclude,
                                        allow_domains=args.allow_domain, deny_domains=args.deny_domain,
                                        timeout=args.timeout, retries=args.retries, delay=args.delay,

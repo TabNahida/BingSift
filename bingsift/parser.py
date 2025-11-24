@@ -104,11 +104,24 @@ def _guess_time(block_text: str, now_dt: datetime) -> datetime | None:
         return dt
     return _parse_absolute_date(block_text)
 
-def build_bing_url(query: str, *, when: str | None = None, site: str | None = None,
-                   lang: str | None = None, country: str | None = None, safe: bool | None = None) -> str:
+def build_bing_url(
+    query: str,
+    *,
+    when: str | None = None,
+    site: str | None = None,
+    lang: str | None = None,
+    country: str | None = None,
+    safe: bool | None = None,
+    first: int | None = None,
+) -> str:
     """
-    Build a Bing search URL with optional freshness ('day'/'week'/'month'/'year'),
-    site restriction, language, market, and adult filter toggle.
+    Build a Bing search URL with optional:
+    - when: freshness ('day'/'week'/'month'/'year')
+    - site: site:domain restriction
+    - lang: setlang (e.g., 'en-GB')
+    - country: mkt/cc (e.g., 'en-GB')
+    - safe: if True -> adlt=off, else adlt=strict
+    - first: 1-based index of the first result to show (Bing 'first' parameter)
     """
     q = query
     if site:
@@ -124,7 +137,10 @@ def build_bing_url(query: str, *, when: str | None = None, site: str | None = No
         params.append(("mkt", country))
     if safe is not None:
         params.append(("adlt", "off" if safe else "strict"))
-    param_str = "&".join([f"{k}={quote_plus(v)}" for k,v in params])
+    if first is not None:
+        # Bing uses 1-based 'first' parameter for pagination (e.g. first=51 shows results starting from 51)
+        params.append(("first", str(first)))
+    param_str = "&".join([f"{k}={quote_plus(v)}" for k, v in params])
     return f"https://www.bing.com/search?{param_str}"
 
 def parse_html(html: str) -> list[dict]:
