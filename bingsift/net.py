@@ -14,7 +14,11 @@ _DEFAULT_HEADERS = {
     "Cache-Control": "no-cache",
 }
 
-async def _sleep(delay: float):
+def _sleep(delay: float):
+    if delay and delay > 0:
+        time.sleep(delay)
+
+async def _sleep_async(delay: float):
     if delay and delay > 0:
         await asyncio.sleep(delay)
 
@@ -36,7 +40,7 @@ async def _fetch_async(url: str, *, timeout: float = 12.0, retries: int = 2, del
         last_exc = None
         for attempt in range(retries + 1):
             try:
-                await _sleep(delay if attempt == 0 else delay * (attempt + 1))
+                await _sleep_async(delay if attempt == 0 else delay * (attempt + 1))
                 async with session.get(url, headers=hdrs, timeout=aiohttp.ClientTimeout(total=timeout), ssl=False) as response:
                     response.raise_for_status()
                     return await response.text()
