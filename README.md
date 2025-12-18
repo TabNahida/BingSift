@@ -158,6 +158,24 @@ rows = fetch_serp_by_query(
 )
 ```
 
+### **Async Network fetch + parse**
+
+```python
+import asyncio
+from bingsift.net import fetch_serp_by_query_async
+
+async def main():
+    rows = await fetch_serp_by_query_async(
+        query="amd mi300",
+        when="day",
+        include=["performance"]
+    )
+    # Process results here
+
+# Run the async function
+asyncio.run(main())
+```
+
 ---
 
 ### **Network fetch click redirect**
@@ -167,6 +185,20 @@ from bingsift.net import fetch_click_and_extract
 
 real = fetch_click_and_extract("https://www.bing.com/ck/a?...")
 print(real)
+```
+
+### **Async Network fetch click redirect**
+
+```python
+import asyncio
+from bingsift.net import fetch_click_and_extract_async
+
+async def main():
+    real = await fetch_click_and_extract_async("https://www.bing.com/ck/a?...")
+    print(real)
+
+# Run the async function
+asyncio.run(main())
 ```
 
 ---
