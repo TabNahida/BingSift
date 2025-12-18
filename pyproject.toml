@@ -1,6 +1,6 @@
 [project]
 name = "bingsift"
-version = "0.3.3"
+version = "0.3.4"
 description = "Sift Bing SERP HTML into clean JSON/CSV, build filtered search URLs, extract Bing click targets, and optionally fetch over the network."
 readme = "README.md"
 requires-python = ">=3.10"
